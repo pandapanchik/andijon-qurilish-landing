@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Andijon Qurilish Hojaroloyiha</title>
+  <meta name="description" content="Andijon Qurilish Hojaroloyiha: turar-joy va tijorat binolarini loyihadan kalit topshirishgacha quramiz." />
+  <meta name="theme-color" content="#1B1D45" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;700;900&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <div class="sky" id="sky" aria-hidden="true">
+    <div class="sky__stars"></div>
+    <div class="sky__sun"></div>
+    <div class="sky__moon"></div>
+  </div>
+  <canvas class="scene" id="scene" aria-hidden="true"></canvas>
+
+  <header class="tablo" id="tablo">
+    <div class="tablo__bar">
+      <a class="brand" href="#top" aria-label="Andijon Qurilish Hojaroloyiha">
+        <svg class="brand__mark" viewBox="0 0 40 40" aria-hidden="true">
+          <rect x="2" y="2" width="36" height="36" rx="9" fill="#FFC21A" />
+          <path d="M8 13h24M12 13v18M12 17l5-4M12 21l5-4M28 13v6" stroke="#1B1D45" stroke-width="2.6" stroke-linecap="round" fill="none" />
+          <path d="M28 19a3 3 0 1 1-3 3" stroke="#1B1D45" stroke-width="2.6" stroke-linecap="round" fill="none" />
+        </svg>
+        <span class="brand__name"><b>Andijon Qurilish</b><span>Hojaroloyiha</span></span>
+      </a>
+
+      <nav class="tablo__nav" id="nav" aria-label="Sahifa">
+        <a href="#yechim" data-i18n="nav.why">Nega biz</a>
+        <a href="#jarayon" data-i18n="nav.process">Jarayon</a>
+        <a href="#obyektlar" data-i18n="nav.proof">Obyektlar</a>
+        <a href="#aloqa" data-i18n="nav.contact">Aloqa</a>
+      </nav>
+
+      <div class="lift" aria-hidden="true">
+        <span class="lift__arrows"><i class="lift__up"></i><i class="lift__down"></i></span>
+        <svg class="seg" id="liftDigits"></svg>
+        <span class="lift__label" data-i18n="lift.floor">Qavat</span>
+      </div>
+
+      <div class="lang" role="group" aria-label="Til / Language">
+        <button type="button" data-lang="uz">UZ</button>
+        <button type="button" data-lang="en">EN</button>
+      </div>
+      <a class="btn btn--small tablo__cta" href="#aloqa" data-i18n="nav.cta">Bog‘lanish</a>
+      <button class="tablo__burger" type="button" aria-expanded="false" aria-controls="nav" data-i18n-aria="nav.menu"><span></span><span></span></button>
+    </div>
+    <div class="jib" aria-hidden="true">
+      <div class="jib__truss"></div>
+      <div class="jib__trolley" id="trolley">
+        <span class="jib__hang">
+          <span class="jib__cable" id="jibCable"></span>
+          <span class="jib__load" id="jibLoad"><span class="jib__hook"></span><span class="jib__tag" id="jibTag"></span></span>
+        </span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- 1. Hero: the tower builds itself in front of the company name -->
+    <section class="hero" id="top" data-sec>
+      <h1 class="hero__title" aria-label="Andijon Qurilish Hojaroloyiha">
+        <span class="hero__l1" aria-hidden="true">Andijon</span>
+        <span class="hero__l2" aria-hidden="true">Qurilish</span>
+        <span class="hero__l3" aria-hidden="true">Hojaroloyiha</span>
+      </h1>
+      <div class="hero__foot">
+        <div class="hero__copy">
+          <p class="hero__lead" data-i18n="hero.lead"></p>
+          <p class="hero__sub" data-i18n="hero.sub"></p>
+          <div class="hero__ctas">
+            <a class="btn" href="#aloqa" data-i18n="hero.cta"></a>
+            <a class="btn btn--ghost" href="#jarayon" data-i18n="hero.cta2"></a>
+          </div>
+        </div>
+        <div class="board" id="board">
+          <span class="board__label" id="boardLabel" data-i18n="board.building"></span>
+          <div class="board__value"><svg class="seg" id="buildDigits"></svg><span class="board__pct">%</span></div>
+          <div class="board__bar"><span id="boardBar"></span></div>
+          <button class="board__replay" id="replay" type="button" hidden data-i18n="board.replay"></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. Pain and solution -->
+    <section class="sec sec--left" id="yechim" data-sec>
+      <div class="sec__panel">
+        <h2 class="h2" data-drop data-i18n="why.title"></h2>
+        <div class="compare">
+          <div class="compare__col compare__col--before">
+            <h3 data-i18n="why.before"></h3>
+            <ul>
+              <li data-i18n="why.b1"></li>
+              <li data-i18n="why.b2"></li>
+              <li data-i18n="why.b3"></li>
+              <li data-i18n="why.b4"></li>
+            </ul>
+          </div>
+          <div class="compare__col compare__col--after">
+            <h3 data-i18n="why.after"></h3>
+            <ul>
+              <li data-i18n="why.a1"></li>
+              <li data-i18n="why.a2"></li>
+              <li data-i18n="why.a3"></li>
+              <li data-i18n="why.a4"></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. How we work -->
+    <section class="sec sec--right" id="jarayon" data-sec>
+      <div class="sec__panel">
+        <h2 class="h2" data-drop data-i18n="process.title"></h2>
+        <ol class="shaft" id="shaft">
+          <li class="stop"><span class="stop__floor">1</span><div><h3 data-i18n="process.s1t"></h3><p data-i18n="process.s1p"></p></div></li>
+          <li class="stop"><span class="stop__floor">2</span><div><h3 data-i18n="process.s2t"></h3><p data-i18n="process.s2p"></p></div></li>
+          <li class="stop"><span class="stop__floor">3</span><div><h3 data-i18n="process.s3t"></h3><p data-i18n="process.s3p"></p></div></li>
+          <li class="stop"><span class="stop__floor">4</span><div><h3 data-i18n="process.s4t"></h3><p data-i18n="process.s4p"></p></div></li>
+        </ol>
+        <h3 class="h3" data-i18n="services.title"></h3>
+        <ul class="chips">
+          <li data-i18n="services.1"></li>
+          <li data-i18n="services.2"></li>
+          <li data-i18n="services.3"></li>
+          <li data-i18n="services.4"></li>
+          <li data-i18n="services.5"></li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- 4. Social proof -->
+    <section class="sec sec--wide" id="obyektlar" data-sec>
+      <div class="sec__panel">
+        <h2 class="h2" data-drop data-i18n="proof.title"></h2>
+        <div class="proof">
+          <div class="passport">
+            <div class="passport__head" data-i18n="proof.passport"></div>
+            <dl>
+              <div><dt data-i18n="proof.since"></dt><dd>[...]</dd></div>
+              <div><dt data-i18n="proof.objects"></dt><dd>[...]</dd></div>
+              <div><dt data-i18n="proof.area"></dt><dd>[...]</dd></div>
+              <div><dt data-i18n="proof.team"></dt><dd>[...]</dd></div>
+              <div><dt data-i18n="proof.license"></dt><dd>[...]</dd></div>
+            </dl>
+            <i class="bolt"></i><i class="bolt"></i><i class="bolt"></i><i class="bolt"></i>
+          </div>
+          <div class="cases">
+            <article class="case">
+              <div class="case__photo"><span data-i18n="proof.photo"></span></div>
+              <h3 data-i18n="proof.case"></h3>
+              <p class="case__meta" data-i18n="proof.caseMeta"></p>
+              <p data-i18n="proof.caseText"></p>
+            </article>
+            <article class="case">
+              <div class="case__photo"><span data-i18n="proof.photo"></span></div>
+              <h3 data-i18n="proof.case"></h3>
+              <p class="case__meta" data-i18n="proof.caseMeta"></p>
+              <p data-i18n="proof.caseText"></p>
+            </article>
+            <article class="case">
+              <div class="case__photo"><span data-i18n="proof.photo"></span></div>
+              <h3 data-i18n="proof.case"></h3>
+              <p class="case__meta" data-i18n="proof.caseMeta"></p>
+              <p data-i18n="proof.caseText"></p>
+            </article>
+          </div>
+        </div>
+        <figure class="quote">
+          <blockquote data-i18n="proof.quote"></blockquote>
+          <figcaption data-i18n="proof.author"></figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- 5. Call to action -->
+    <section class="sec sec--left sec--cta" id="aloqa" data-sec>
+      <div class="sec__panel">
+        <h2 class="h2" data-drop data-i18n="cta.title"></h2>
+        <p class="offer" data-i18n="cta.offer"></p>
+
+        <form class="permit" id="leadForm" novalidate>
+          <p class="permit__title" data-i18n="form.title"></p>
+          <label class="field">
+            <span data-i18n="form.name"></span>
+            <input name="name" autocomplete="name" required />
+            <em class="field__err" data-err="name"></em>
+          </label>
+          <label class="field">
+            <span data-i18n="form.phone"></span>
+            <input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+998 __ ___ __ __" required />
+            <em class="field__err" data-err="phone"></em>
+          </label>
+          <label class="field">
+            <span data-i18n="form.type"></span>
+            <select name="type">
+              <option data-i18n="form.t1" value="housing"></option>
+              <option data-i18n="form.t2" value="commercial"></option>
+              <option data-i18n="form.t3" value="house"></option>
+              <option data-i18n="form.t4" value="reconstruction"></option>
+              <option data-i18n="form.t5" value="other"></option>
+            </select>
+          </label>
+          <button class="btn btn--wide" type="submit" data-i18n="form.submit"></button>
+          <p class="permit__ok" id="formOk" role="status" hidden></p>
+        </form>
+
+        <dl class="contacts">
+          <div><dt data-i18n="contacts.phone"></dt><dd>[+998 .. ... .. ..]</dd></div>
+          <div><dt data-i18n="contacts.tg"></dt><dd>[@...]</dd></div>
+          <div><dt data-i18n="contacts.address"></dt><dd>[Andijon, ...]</dd></div>
+          <div><dt data-i18n="contacts.hours"></dt><dd>[...]</dd></div>
+        </dl>
+
+        <div class="faq">
+          <h3 class="h3" data-i18n="faq.title"></h3>
+          <details><summary data-i18n="faq.q1"></summary><p data-i18n="faq.a1"></p></details>
+          <details><summary data-i18n="faq.q2"></summary><p data-i18n="faq.a2"></p></details>
+          <details><summary data-i18n="faq.q3"></summary><p data-i18n="faq.a3"></p></details>
+          <details><summary data-i18n="faq.q4"></summary><p data-i18n="faq.a4"></p></details>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span>© 2026 Andijon Qurilish Hojaroloyiha.</span>
+    <span data-i18n="foot.rights"></span>
+  </footer>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
