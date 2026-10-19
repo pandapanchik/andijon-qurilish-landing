@@ -1,9 +1,10 @@
 // CSS sky behind the transparent WebGL canvas: sunset at the top of the page, night at the bottom.
+// Golden hour (blue zenith, peach horizon) -> night with a faint city glow at the horizon.
 const STOPS = {
-  top: ['#2E2F6E', '#070A22'],
-  mid: ['#8E4E80', '#151A45'],
-  low: ['#F08E6E', '#232A5E'],
-  horizon: ['#F2A585', '#2D3366'],
+  top: ['#2B4C7E', '#04071A'],
+  mid: ['#7189B4', '#0B1433'],
+  low: ['#E2A88A', '#1A2346'],
+  horizon: ['#E7B793', '#262E4C'],
 };
 const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
 const mix = (a, b, t) => {

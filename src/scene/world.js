@@ -4,7 +4,8 @@ import { createTower } from './tower.js';
 import { createCrane, CraneOperator } from './crane.js';
 import { createSiteTraffic, createAvenue } from './vehicles.js';
 import { createCity } from './city.js';
-import { rng, smooth, lerp } from './kit.js';
+import { rng, smooth, lerp, paint, rodGeometry } from './kit.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 // One camera frame per page section. shift > 0 slides the picture right (content on the left).
 const FRAMES = [
@@ -15,15 +16,49 @@ const FRAMES = [
   { pos: [34, 8, 96], target: [0, 50, 0], shift: 0.22 },
 ];
 
+// Golden hour fading into night; fog matches the CSS sky horizon (src/ui/sky.js).
 const SKY = {
-  fogDusk: new THREE.Color('#F2A585'),
-  fogNight: new THREE.Color('#2D3366'),
-  hemiSkyDusk: new THREE.Color('#C7B0E6'),
-  hemiSkyNight: new THREE.Color('#4A5799'),
-  hemiGround: new THREE.Color('#6A4458'),
-  sunDusk: new THREE.Color('#FFB47E'),
-  sunNight: new THREE.Color('#9DB0FF'),
+  fogDusk: new THREE.Color('#E7B793'),
+  fogNight: new THREE.Color('#262E4C'),
+  hemiSkyDusk: new THREE.Color('#B9C7E2'),
+  hemiSkyNight: new THREE.Color('#3A4A7A'),
+  hemiGround: new THREE.Color('#6B5A48'),
+  sunDusk: new THREE.Color('#FFC58E'),
+  sunNight: new THREE.Color('#8FA6E0'),
 };
+const SUN_DIR = new THREE.Vector3(160, 85, 95).normalize();
+
+// Image-based lighting: a gradient sky with a low sun, prefiltered for glossy reflections.
+function skyEnvironment(renderer) {
+  const scene = new THREE.Scene();
+  const material = new THREE.ShaderMaterial({
+    side: THREE.BackSide,
+    depthWrite: false,
+    uniforms: {
+      top: { value: new THREE.Color('#2B4C7E') },
+      horizon: { value: new THREE.Color('#F0C09A') },
+      ground: { value: new THREE.Color('#4E463E') },
+      sunColor: { value: new THREE.Color('#FFD2A0') },
+      sunDir: { value: SUN_DIR },
+    },
+    vertexShader: `varying vec3 vDir;
+      void main() { vDir = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: `uniform vec3 top, horizon, ground, sunColor, sunDir; varying vec3 vDir;
+      void main() {
+        vec3 d = normalize(vDir);
+        vec3 c = d.y > 0.0 ? mix(horizon, top, pow(smoothstep(0.0, 0.75, d.y), 0.55))
+                           : mix(horizon * 0.6, ground, smoothstep(0.0, 0.12, -d.y));
+        float s = max(dot(d, sunDir), 0.0);
+        c += sunColor * (pow(s, 900.0) * 40.0 + pow(s, 10.0) * 0.6);
+        gl_FragColor = vec4(c, 1.0);
+      }`,
+  });
+  scene.add(new THREE.Mesh(new THREE.SphereGeometry(100, 48, 24), material));
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const env = pmrem.fromScene(scene, 0.01).texture;
+  pmrem.dispose();
+  return env;
+}
 
 export function createWorld(canvas, { reduced = false } = {}) {
   const mobile = Math.min(window.innerWidth, window.innerHeight) < 700 || matchMedia('(pointer: coarse)').matches;
@@ -33,19 +68,23 @@ export function createWorld(canvas, { reduced = false } = {}) {
   renderer.localClippingEnabled = true;
   renderer.shadowMap.enabled = !mobile;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
 
   const scene = new THREE.Scene();
   scene.fog = new THREE.Fog(SKY.fogDusk.clone(), 150, 640);
   const camera = new THREE.PerspectiveCamera(38, 1, 1, 2400);
 
-  const hemi = new THREE.HemisphereLight(SKY.hemiSkyDusk.clone(), SKY.hemiGround, 1.7);
-  const sun = new THREE.DirectionalLight(SKY.sunDusk.clone(), 2.6);
-  sun.position.set(150, 120, 110);
+  scene.environment = skyEnvironment(renderer);
+  const hemi = new THREE.HemisphereLight(SKY.hemiSkyDusk.clone(), SKY.hemiGround, 0.6);
+  const sun = new THREE.DirectionalLight(SKY.sunDusk.clone(), 3.4);
+  sun.position.copy(SUN_DIR).multiplyScalar(260);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
-  Object.assign(sun.shadow.camera, { left: -120, right: 120, top: 140, bottom: -60, near: 10, far: 500 });
-  sun.shadow.bias = -0.0006;
-  scene.add(hemi, sun, new THREE.AmbientLight('#ffffff', 0.25));
+  sun.shadow.mapSize.set(mobile ? 1024 : 4096, mobile ? 1024 : 4096);
+  Object.assign(sun.shadow.camera, { left: -110, right: 110, top: 120, bottom: -70, near: 20, far: 600 });
+  sun.shadow.bias = -0.0003;
+  sun.shadow.normalBias = 0.04;
+  scene.add(hemi, sun);
 
   const rand = rng(42);
   const city = createCity(scene, { rand, mobile });
@@ -56,6 +95,18 @@ export function createWorld(canvas, { reduced = false } = {}) {
   const crane = createCrane({ height: 96, jib: 46 });
   crane.root.position.set(-14, 0, -9);
   scene.add(crane.root);
+  // tie-in frames that brace the crane mast to the frame once it is tall enough
+  const ties = [26, 52].map((h) => {
+    const m = new THREE.Mesh(mergeGeometries([
+      rodGeometry(new THREE.Vector3(-13, h, -8.1), new THREE.Vector3(-7.4, h, -5.2), 0.12),
+      rodGeometry(new THREE.Vector3(-13, h, -9.9), new THREE.Vector3(-7.4, h, -6.8), 0.12),
+      rodGeometry(new THREE.Vector3(-13, h, -8.1), new THREE.Vector3(-7.4, h, -6.8), 0.08),
+    ]), paint('#E9AE12'));
+    m.castShadow = true;
+    m.visible = false;
+    scene.add(m);
+    return { m, h };
+  });
   const bay = new THREE.Vector3(-46, 0, 6);
   const operator = new CraneOperator(crane, {
     pick: new THREE.Vector3(-33.4, 0.5, 3.6),
@@ -65,7 +116,7 @@ export function createWorld(canvas, { reduced = false } = {}) {
   // second site in the back: grows with scroll
   const tower2 = createTower({
     floors: 14, w: 16, cols: 7, seed: 3,
-    palette: { spandrel: '#D5DCEB', glassTop: '#2F3A6E', glassBottom: '#8FB6E2', fin: '#FFC21A', concrete: '#C9C2B8' },
+    palette: { glass: '#90a4b2', spandrel: '#cfc9bd', frame: '#d9d6cf', trim: '#bdb8ae', concrete: '#efe9e0' },
   });
   tower2.group.position.set(110, 0, -86);
   scene.add(tower2.group);
@@ -149,10 +200,11 @@ export function createWorld(canvas, { reduced = false } = {}) {
     }
     const glowIn = state.completedAt >= 0 ? smooth(0, 1.6, time - state.completedAt) : 0;
     state.night = smooth(1.9, 3.8, state.scroll);
-    const glow = Math.max(0.12 + state.night * 1.05, glowIn * 0.55) * (state.build >= 0.98 ? 1 : 0.35 + state.night);
-    tower.update(state.build, glow);
+    const glow = Math.max(0.12 + state.night * 1.05, glowIn * 0.35) * (state.build >= 0.98 ? 1 : 0.35 + state.night);
+    tower.update(state.build, glow, time);
+    for (const t of ties) t.m.visible = tower.top > t.h + 2;
     const grow = smooth(1.6, 3.1, state.scroll);
-    tower2.update(Math.max(0.04, grow), 0.1 + state.night);
+    tower2.update(Math.max(0.04, grow), 0.1 + state.night, time);
 
     // camera
     const shift = frameAt(state.scroll);
@@ -175,9 +227,10 @@ export function createWorld(canvas, { reduced = false } = {}) {
     const n = state.night;
     scene.fog.color.copy(SKY.fogDusk).lerp(SKY.fogNight, n);
     hemi.color.copy(SKY.hemiSkyDusk).lerp(SKY.hemiSkyNight, n);
-    hemi.intensity = lerp(1.7, 0.75, n);
+    hemi.intensity = lerp(0.6, 0.18, n);
     sun.color.copy(SKY.sunDusk).lerp(SKY.sunNight, n);
-    sun.intensity = lerp(2.6, 0.55, n);
+    sun.intensity = lerp(3.4, 0.35, n);
+    scene.environmentIntensity = lerp(1, 0.1, n);
 
     const blink = (Math.sin(time * 3) > 0.2 ? 1 : 0.25) * lerp(0.7, 1, n);
     for (const c of [crane, crane2, crane3]) c.lightMat.color.setRGB(blink, 0.1 * blink, 0.1 * blink);
