@@ -38,7 +38,7 @@ ul, ol { padding: 0; list-style: none; }
 /* ---------- sky + canvas layers ------------------------------------------------------- */
 .sky {
   position: fixed; inset: 0; z-index: 0;
-  background: var(--sky, linear-gradient(180deg, #2E2F6E 0%, #8E4E80 36%, #F08E6E 58%, #F2A585 76%));
+  background: var(--sky, linear-gradient(180deg, #2B4C7E 0%, #7189B4 36%, #E2A88A 58%, #E7B793 76%));
   overflow: hidden;
 }
 .sky__stars {
@@ -47,9 +47,11 @@ ul, ol { padding: 0; list-style: none; }
 }
 .sky__sun {
   position: absolute; left: 50%; top: 40vh;
-  width: min(46vw, 520px); aspect-ratio: 1; border-radius: 50%;
+  width: min(70vw, 760px); aspect-ratio: 1; border-radius: 50%;
+  margin-top: calc(min(23vw, 260px) - min(35vw, 380px)); /* keep the centre where the old disc sat */
   translate: -50% calc(var(--night, 0) * 42vh);
-  background: radial-gradient(circle at 50% 50%, #FFE7A8 0%, #FFC67A 45%, rgba(255, 160, 110, 0.0) 70%);
+  /* small hot disc inside a wide atmospheric glow */
+  background: radial-gradient(circle at 50% 50%, #FFF8E6 0%, #FFF1CF 4.5%, #FFD9A0 6%, rgba(255, 196, 140, 0.55) 14%, rgba(255, 170, 120, 0.18) 36%, rgba(255, 160, 110, 0) 68%);
   opacity: calc(1 - var(--night, 0) * 1.4);
 }
 .sky__moon {

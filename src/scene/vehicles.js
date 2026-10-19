@@ -1,7 +1,8 @@
-// Cartoon trucks that loop around the site and stop at the delivery bay, plus avenue traffic.
+// Site trucks that loop around the site and stop at the delivery bay, plus avenue traffic.
+// Bodies are extruded side profiles, so silhouettes read like real vehicles.
 import * as THREE from 'three';
-import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { toon, mesh, canvasTexture } from './kit.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { mat, paint, steel, glass, canvasTexture, groundTexture, mesh } from './kit.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -20,7 +21,7 @@ function roundedRect(x0, x1, z0, z1, r, seg = 6) {
   return pts;
 }
 
-// Flat road ribbon following a curve, with a dashed centre line baked into the texture.
+// Flat road ribbon following a curve; u runs along the road in metres / 8.
 export function roadRibbon(curve, width, samples, closed) {
   const pos = [], uv = [], idx = [];
   const len = curve.getLength();
@@ -44,104 +45,156 @@ export function roadRibbon(curve, width, samples, closed) {
   return g;
 }
 
-export function roadMaterial() {
-  const tex = canvasTexture(128, 128, (g) => {
-    g.fillStyle = '#3A3A52';
-    g.fillRect(0, 0, 128, 128);
-    g.fillStyle = '#2F2F45';
-    g.fillRect(0, 0, 128, 8);
-    g.fillRect(0, 120, 128, 8);
-    g.fillStyle = '#F4C542';
-    g.fillRect(10, 60, 70, 8);
+// Asphalt with tyre polish in the wheel paths and painted lane markings (u = along, v = across).
+function roadTexture(kind) {
+  const noise = groundTexture(kind === 'site' ? 'siteRoad' : 'asphalt').image;
+  return canvasTexture(256, 256, (g, w, h) => {
+    g.drawImage(noise, 0, 0, w, h);
+    g.fillStyle = 'rgba(20,20,22,0.18)';
+    if (kind === 'site') {
+      g.fillRect(0, h * 0.18, w, h * 0.16);
+      g.fillRect(0, h * 0.66, w, h * 0.16);
+      return;
+    }
+    for (const v of [0.12, 0.33, 0.62, 0.83]) g.fillRect(0, h * (v - 0.03), w, h * 0.06);
+    g.fillStyle = 'rgba(236,234,226,0.85)';
+    g.fillRect(0, h * 0.02, w, 3); // edge lines
+    g.fillRect(0, h * 0.98 - 3, w, 3);
+    g.fillRect(0, h * 0.5 - 4, w, 3); // double centre line
+    g.fillRect(0, h * 0.5 + 1, w, 3);
+    for (const v of [0.25, 0.75]) g.fillRect(0, h * v - 1, w * 0.45, 3); // lane dashes
   }, { repeat: true });
-  return toon('#ffffff', { map: tex });
 }
 
 // --- Vehicle builders --------------------------------------------------------------------
-const wheelGeo = new THREE.CylinderGeometry(0.75, 0.75, 0.6, 14).rotateX(Math.PI / 2);
-const hubGeo = new THREE.CylinderGeometry(0.32, 0.32, 0.64, 8).rotateX(Math.PI / 2);
-const tyre = toon('#24253A');
-const hub = toon('#D9D3C8');
+function extrude(points, depth, bevel = 0.06) {
+  const s = new THREE.Shape(points.map(([x, y]) => new THREE.Vector2(x, y)));
+  const g = new THREE.ExtrudeGeometry(s, { depth: depth - bevel * 2, bevelEnabled: true, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 2, curveSegments: 4 });
+  return g.translate(0, 0, -(depth - bevel * 2) / 2);
+}
 
-function addWheels(g, xs, wheels, halfW = 1.2) {
+const tyreMat = mat('#1d1e20', { roughness: 0.9 });
+const rimMat = steel('#b9bdc1', { roughness: 0.3 });
+const chassisMat = paint('#1f2124', { roughness: 0.7 });
+const chrome = steel('#d6d9dc', { roughness: 0.15 });
+const darkGlass = glass('#1c242c', { roughness: 0.04 });
+const headMat = new THREE.MeshBasicMaterial({ color: '#FFF4D6' });
+const tailMat = new THREE.MeshBasicMaterial({ color: '#C3141B' });
+const paints = new Map();
+const carPaint = (c) => {
+  if (!paints.has(c)) paints.set(c, new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.35, metalness: 0.4, clearcoat: 1, clearcoatRoughness: 0.08 }));
+  return paints.get(c);
+};
+
+function wheel(r, width) {
+  const w = new THREE.Group();
+  w.add(mesh(new THREE.CylinderGeometry(r, r, width, 18).rotateX(Math.PI / 2), tyreMat));
+  w.add(mesh(new THREE.CylinderGeometry(r * 0.58, r * 0.58, width + 0.02, 12).rotateX(Math.PI / 2), rimMat));
+  return w;
+}
+
+function addWheels(g, xs, wheels, halfW = 1.05, r = 0.52, width = 0.4) {
   for (const x of xs) {
     for (const z of [-halfW, halfW]) {
-      const w = new THREE.Group();
-      w.add(mesh(wheelGeo, tyre), mesh(hubGeo, hub));
-      w.position.set(x, 0.75, z);
+      const w = wheel(r, width);
+      w.position.set(x, r, z);
       g.add(w);
       wheels.push(w);
     }
   }
 }
 
-function cab(g, color, x) {
-  g.add(mesh(new RoundedBoxGeometry(2.4, 2.5, 2.6, 3, 0.5), toon(color), { x, y: 2.15 }));
-  g.add(mesh(new RoundedBoxGeometry(0.2, 1, 2.2, 2, 0.08), toon('#8CC8F0'), { x: x + 1.15, y: 2.6 }));
-  g.add(mesh(new THREE.BoxGeometry(0.3, 0.4, 0.5), toon('#FFE9A8', { emissive: '#FFB84D', emissiveIntensity: 0.4 }), { x: x + 1.2, y: 1.3, z: 0.9 }));
-  g.add(mesh(new THREE.BoxGeometry(0.3, 0.4, 0.5), toon('#FFE9A8', { emissive: '#FFB84D', emissiveIntensity: 0.4 }), { x: x + 1.2, y: 1.3, z: -0.9 }));
-  g.add(mesh(new THREE.BoxGeometry(0.5, 0.25, 0.9), toon('#FF8A1F', { emissive: '#FF8A1F', emissiveIntensity: 0.6 }), { x: x - 0.2, y: 3.5 }));
+// Cab-over truck cab (KAMAZ / MAN style) with its front at x = xf.
+function cab(g, color, xf) {
+  const body = paint(color, { roughness: 0.4, metalness: 0.2 });
+  g.add(mesh(extrude([[xf - 2.1, 1.15], [xf, 1.15], [xf + 0.06, 2.1], [xf - 0.12, 3.25], [xf - 2.1, 3.3]], 2.45, 0.08), body));
+  g.add(mesh(extrude([[xf + 0.08, 2.15], [xf - 0.08, 3.12], [xf - 1.0, 3.12], [xf - 1.0, 2.15]], 2.5, 0.02), darkGlass));
+  g.add(mesh(new THREE.BoxGeometry(0.2, 0.5, 2.5), chassisMat, { x: xf + 0.05, y: 1.05 })); // bumper
+  g.add(mesh(new THREE.BoxGeometry(0.05, 0.55, 1.4), chassisMat, { x: xf + 0.07, y: 1.7 })); // grille
+  for (const z of [-0.95, 0.95]) {
+    g.add(mesh(new THREE.BoxGeometry(0.06, 0.18, 0.32), headMat, { x: xf + 0.16, y: 1.12, z }));
+    g.add(mesh(new THREE.BoxGeometry(0.08, 0.45, 0.12), chassisMat, { x: xf - 0.2, y: 2.6, z: z * 1.42 })); // mirrors
+  }
+  g.add(mesh(new THREE.BoxGeometry(0.3, 0.14, 0.5), new THREE.MeshBasicMaterial({ color: '#FF9A1F' }), { x: xf - 1.2, y: 3.4 })); // beacon
+}
+
+function mixerDrumTexture() {
+  return canvasTexture(256, 128, (g, w, h) => {
+    g.fillStyle = '#e9e7e1';
+    g.fillRect(0, 0, w, h);
+    g.fillStyle = '#E2541C';
+    for (let i = -2; i < 6; i++) {
+      g.beginPath();
+      g.moveTo(i * 64, 0); g.lineTo(i * 64 + 20, 0); g.lineTo(i * 64 + 84, h); g.lineTo(i * 64 + 64, h);
+      g.fill();
+    }
+    g.fillStyle = 'rgba(120,112,100,0.35)'; // dried concrete splashes
+    for (let i = 0; i < 40; i++) g.fillRect(Math.random() * w, h * 0.6 + Math.random() * h * 0.4, 3 + Math.random() * 8, 2 + Math.random() * 5);
+  }, { repeat: true });
 }
 
 export function makeTruck(kind) {
   const g = new THREE.Group();
   const wheels = [];
   const spin = [];
-  g.add(mesh(new THREE.BoxGeometry(7.2, 0.5, 2.2), toon('#2B2D52'), { y: 1.05 }));
+  g.add(mesh(new THREE.BoxGeometry(7.4, 0.32, 0.9), chassisMat, { y: 1.0 })); // frame rails
+  g.add(mesh(new THREE.CylinderGeometry(0.32, 0.32, 1.1, 14).rotateZ(Math.PI / 2), steel('#a9adb2', { roughness: 0.3 }), { x: 0.6, y: 0.85, z: 0.95 })); // fuel tank
 
   if (kind === 'mixer') {
-    cab(g, '#FF5E1F', 2.4);
+    cab(g, '#ECECE8', 3.6);
     const prof = [];
-    for (let i = 0; i <= 10; i++) {
-      const t = i / 10;
-      prof.push(new THREE.Vector2(0.4 + Math.sin(t * Math.PI) * 1.2 + t * 0.2, t * 4.4 - 2.2));
+    for (let i = 0; i <= 14; i++) {
+      const t = i / 14;
+      prof.push(new THREE.Vector2(0.35 + Math.sin(Math.pow(t, 0.8) * Math.PI) * 1.05 + t * 0.2, t * 4.6 - 2.3));
     }
-    const drumGeo = new THREE.LatheGeometry(prof, 14).rotateZ(Math.PI / 2 + 0.18);
-    const drum = mesh(drumGeo, toon('#F1ECE4', { side: THREE.DoubleSide }), { x: -1.2, y: 2.6 });
-    const stripe = mesh(new THREE.TorusGeometry(1.45, 0.14, 6, 18).rotateY(Math.PI / 2), toon('#FF5E1F'), { x: -1.2, y: 2.6 });
-    const drumGroup = new THREE.Group();
-    drumGroup.add(drum, stripe);
-    g.add(drumGroup);
+    const drumGeo = new THREE.LatheGeometry(prof, 24).rotateZ(Math.PI / 2 + 0.2);
+    const drum = mesh(drumGeo, paint('#ffffff', { map: mixerDrumTexture(), roughness: 0.45, side: THREE.DoubleSide }), { x: -1.0, y: 2.55 });
+    g.add(drum);
     spin.push(drum);
-    addWheels(g, [2.4, -0.8, -2.6], wheels);
+    g.add(mesh(new THREE.BoxGeometry(0.9, 1.2, 1.6), paint('#ECECE8'), { x: -3.4, y: 1.9 })); // hopper frame
+    g.add(mesh(new THREE.BoxGeometry(1.6, 0.2, 0.5).rotateZ(-0.5), steel('#8a8f94'), { x: -3.9, y: 1.4 })); // chute
+    addWheels(g, [2.7, -1.2, -2.6], wheels);
   } else if (kind === 'flatbed') {
-    cab(g, '#FFC21A', 2.4);
-    g.add(mesh(new THREE.BoxGeometry(4.8, 0.3, 2.4), toon('#5B5E85'), { x: -1.2, y: 1.45 }));
-    const red = toon('#D8472B');
-    for (let i = 0; i < 3; i++) g.add(mesh(new THREE.BoxGeometry(5.2, 0.45, 0.5), red, { x: -1.2, y: 1.85 + (i === 2 ? 0.45 : 0), z: i === 2 ? 0 : (i - 0.5) * 0.9 }));
-    addWheels(g, [2.4, -2.4], wheels);
+    cab(g, '#2D5D9A', 3.6);
+    g.add(mesh(new THREE.BoxGeometry(5.2, 0.2, 2.45), paint('#3b3e44', { roughness: 0.75 }), { x: -1.1, y: 1.35 }));
+    const primer = paint('#7a3b2a', { roughness: 0.7 });
+    const s = new THREE.Shape();
+    const h = 0.4, b = 0.2, tf = 0.04, tw = 0.025;
+    s.moveTo(-b / 2, -h / 2); s.lineTo(b / 2, -h / 2); s.lineTo(b / 2, -h / 2 + tf); s.lineTo(tw / 2, -h / 2 + tf);
+    s.lineTo(tw / 2, h / 2 - tf); s.lineTo(b / 2, h / 2 - tf); s.lineTo(b / 2, h / 2); s.lineTo(-b / 2, h / 2);
+    s.lineTo(-b / 2, h / 2 - tf); s.lineTo(-tw / 2, h / 2 - tf); s.lineTo(-tw / 2, -h / 2 + tf); s.lineTo(-b / 2, -h / 2 + tf);
+    const beam = new THREE.ExtrudeGeometry(s, { depth: 5.6, bevelEnabled: false }).translate(0, 0, -2.8).rotateY(Math.PI / 2);
+    for (let i = 0; i < 4; i++) g.add(mesh(beam, primer, { x: -1.2, y: 1.65 + (i > 2 ? 0.4 : 0), z: i > 2 ? 0 : (i - 1) * 0.5 }));
+    addWheels(g, [2.7, -2.2, -3.2], wheels);
   } else {
-    cab(g, '#4FB0A5', 2.4);
-    g.add(mesh(new THREE.BoxGeometry(4.6, 1.8, 2.5), toon('#FFC21A'), { x: -1.3, y: 2.2 }));
-    const sand = mesh(new THREE.SphereGeometry(1.6, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), toon('#E2B66E'), { x: -1.3, y: 3.05 });
-    sand.scale.set(1.35, 0.55, 0.7);
+    cab(g, '#E37A1E', 3.6); // KAMAZ orange
+    const tipper = paint('#E37A1E', { roughness: 0.5 });
+    g.add(mesh(extrude([[-4.0, 1.4], [1.0, 1.4], [1.3, 3.0], [-4.0, 2.7]], 2.45, 0.04), tipper));
+    const sand = mesh(new THREE.SphereGeometry(1.6, 18, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat('#B8996B', { roughness: 1 }), { x: -1.4, y: 2.6 });
+    sand.scale.set(1.5, 0.42, 0.72);
     g.add(sand);
-    addWheels(g, [2.4, -1.6, -3], wheels);
+    addWheels(g, [2.7, -1.6, -2.9], wheels);
   }
   g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
   return { group: g, wheels, spin };
 }
 
+// Saloon in the shape of the Cobalt / Nexia that fill Uzbek streets.
+const carBody = extrude([[-2.2, 0.32], [2.15, 0.32], [2.25, 0.62], [2.18, 0.82], [0.95, 0.98], [0.2, 1.42], [-1.0, 1.44], [-1.75, 1.02], [-2.2, 0.96], [-2.26, 0.6]], 1.74, 0.08);
+const carGlass = extrude([[0.9, 0.99], [0.24, 1.37], [-0.96, 1.39], [-1.68, 1.03]], 1.78, 0.02);
 export function makeCar(color, rand) {
   const g = new THREE.Group();
   const wheels = [];
-  g.add(mesh(new RoundedBoxGeometry(4.2, 1.1, 2, 3, 0.4), toon(color), { y: 1.1 }));
-  g.add(mesh(new RoundedBoxGeometry(2.3, 0.9, 1.8, 3, 0.35), toon(color), { y: 1.9, x: -0.3 }));
-  g.add(mesh(new THREE.BoxGeometry(2.2, 0.6, 1.84), toon('#8CC8F0'), { y: 1.95, x: -0.3 }));
-  const lights = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.3, 1.5), new THREE.MeshBasicMaterial({ color: '#FFF1C2' }));
-  lights.position.set(2.1, 1.2, 0);
-  g.add(lights);
-  const back = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.3, 1.5), new THREE.MeshBasicMaterial({ color: '#FF4040' }));
-  back.position.set(-2.1, 1.2, 0);
-  g.add(back);
-  for (const x of [1.3, -1.3]) {
-    for (const z of [-0.9, 0.9]) {
-      const w = mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.4, 10).rotateX(Math.PI / 2), tyre, { x, z, y: 0.5 });
-      g.add(w);
-      wheels.push(w);
-    }
+  g.add(mesh(carBody, carPaint(color)));
+  g.add(mesh(carGlass, darkGlass));
+  g.add(mesh(new THREE.BoxGeometry(0.12, 0.2, 1.7), chassisMat, { x: 2.22, y: 0.42 }));
+  g.add(mesh(new THREE.BoxGeometry(0.12, 0.2, 1.7), chassisMat, { x: -2.26, y: 0.42 }));
+  for (const z of [-0.62, 0.62]) {
+    g.add(mesh(new THREE.BoxGeometry(0.06, 0.12, 0.34), headMat, { x: 2.23, y: 0.72, z }));
+    g.add(mesh(new THREE.BoxGeometry(0.06, 0.14, 0.36), tailMat, { x: -2.27, y: 0.8, z }));
   }
-  g.scale.setScalar(0.9 + rand() * 0.2);
+  addWheels(g, [1.35, -1.35], wheels, 0.76, 0.32, 0.22);
+  g.scale.setScalar(0.95 + rand() * 0.1);
   return { group: g, wheels };
 }
 
@@ -149,7 +202,7 @@ export function makeCar(color, rand) {
 export function createSiteTraffic(scene, { rect, bay }) {
   const curve = new THREE.CatmullRomCurve3(roundedRect(...rect, 12), true, 'centripetal');
   const length = curve.getLength();
-  const road = mesh(roadRibbon(curve, 8, 260, true), roadMaterial(), { cast: false, receive: true });
+  const road = mesh(roadRibbon(curve, 8, 260, true), mat('#ffffff', { map: roadTexture('site'), roughness: 0.95 }), { cast: false, receive: true });
   scene.add(road);
 
   // find the curve parameter nearest to the delivery bay
@@ -159,11 +212,11 @@ export function createSiteTraffic(scene, { rect, bay }) {
     if (d < best) { best = d; bayU = i / 400; }
   }
 
-  const kinds = ['mixer', 'flatbed', 'dump', 'flatbed', 'mixer'];
+  const kinds = ['mixer', 'flatbed', 'dump', 'mixer'];
   const trucks = kinds.map((k, i) => {
     const t = makeTruck(k);
     scene.add(t.group);
-    return { ...t, u: (bayU + 0.12 + i * 0.19) % 1, stop: 0, served: false, speed: 9 + (i % 2) * 1.5 };
+    return { ...t, u: (bayU + 0.12 + i * 0.24) % 1, stop: 0, served: false, speed: 6 + (i % 2) * 1.2 };
   });
 
   const p = new THREE.Vector3(), tan = new THREE.Vector3(), right = new THREE.Vector3();
@@ -175,7 +228,7 @@ export function createSiteTraffic(scene, { rect, bay }) {
     tr.group.rotation.y = Math.atan2(-tan.z, tan.x);
   }
 
-  function update(dt, time) {
+  function update(dt) {
     const sorted = [...trucks].sort((a, b) => a.u - b.u);
     for (let i = 0; i < sorted.length; i++) {
       const tr = sorted[i];
@@ -187,16 +240,15 @@ export function createSiteTraffic(scene, { rect, bay }) {
         v = 0;
       } else {
         const toBay = ((bayU - tr.u + 1) % 1) * length;
-        if (!tr.served && toBay < 0.6) { tr.stop = 2.8; tr.served = true; }
+        if (!tr.served && toBay < 0.6) { tr.stop = 3.5; tr.served = true; }
         if (toBay > 20) tr.served = false;
-        v *= Math.min(1, 0.35 + toBay / 18);
-        if (gap < 12) v *= Math.max(0, (gap - 9) / 3);
+        v *= Math.min(1, 0.3 + toBay / 18);
+        if (gap < 13) v *= Math.max(0, (gap - 10) / 3);
       }
       tr.u = (tr.u + (v * dt) / length) % 1;
       place(tr);
-      for (const w of tr.wheels) w.rotation.z -= (v * dt) / 0.75;
-      for (const s of tr.spin) s.rotation.x += dt * 2.4;
-      tr.group.position.y = v > 0.5 ? Math.abs(Math.sin(time * 14 + tr.u * 40)) * 0.06 : 0;
+      for (const w of tr.wheels) w.rotation.z -= (v * dt) / 0.52;
+      for (const s of tr.spin) s.rotation.x += dt * 1.6;
     }
   }
   trucks.forEach(place);
@@ -206,21 +258,32 @@ export function createSiteTraffic(scene, { rect, bay }) {
 // --- Avenue traffic -----------------------------------------------------------------------
 export function createAvenue(scene, { z, rand }) {
   const len = 1400;
-  const avenue = mesh(new THREE.PlaneGeometry(len, 16).rotateX(-Math.PI / 2), roadMaterial(), { z, y: 0.05, cast: false, receive: true });
-  avenue.material.map = avenue.material.map.clone();
-  avenue.material.map.repeat.set(len / 8, 1);
-  avenue.material.map.needsUpdate = true;
+  const tex = roadTexture('avenue');
+  tex.repeat.set(len / 12, 1);
+  const avenue = mesh(new THREE.PlaneGeometry(len, 16).rotateX(-Math.PI / 2), mat('#ffffff', { map: tex, roughness: 0.9 }), { z, y: 0.05, cast: false, receive: true });
   scene.add(avenue);
 
-  const colors = ['#E9573F', '#4FB0A5', '#F6BB42', '#5D9CEC', '#F1ECE4', '#AC92EC', '#ED5565'];
+  // kerbs and paved sidewalks either side
+  const paver = groundTexture('siteRoad').clone();
+  paver.needsUpdate = true;
+  paver.repeat.set(len / 10, 1);
+  const kerbs = mergeGeometries([-1, 1].map((s) => new THREE.BoxGeometry(len, 0.18, 0.3).translate(0, 0.09, z + s * 8.1)));
+  scene.add(mesh(kerbs, mat('#b9b6ae'), { cast: false, receive: true }));
+  for (const s of [-1, 1]) {
+    scene.add(mesh(new THREE.PlaneGeometry(len, 4.5).rotateX(-Math.PI / 2), mat('#d2cdc3', { map: paver, roughness: 0.95 }), { z: z + s * 10.5, y: 0.15, cast: false, receive: true }));
+  }
+
+  // mostly white and silver, like the real traffic
+  const colors = ['#F2F2EF', '#F2F2EF', '#F2F2EF', '#C9CCCF', '#C9CCCF', '#2A2C30', '#7C1F22', '#3A4C63', '#8E9296'];
   const cars = [];
-  for (let i = 0; i < 16; i++) {
+  for (let i = 0; i < 18; i++) {
     const c = makeCar(colors[i % colors.length], rand);
     const dir = i % 2 ? 1 : -1;
+    const lane = rand() < 0.5 ? 2.0 : 5.4;
     c.group.rotation.y = dir > 0 ? 0 : Math.PI;
-    c.group.position.set(-len / 2 + rand() * len, 0, z + dir * 3.6);
+    c.group.position.set(-len / 2 + rand() * len, 0.05, z + dir * lane);
     c.dir = dir;
-    c.speed = 14 + rand() * 10;
+    c.speed = 11 + rand() * 7;
     scene.add(c.group);
     cars.push(c);
   }
@@ -229,7 +292,7 @@ export function createAvenue(scene, { z, rand }) {
       c.group.position.x += c.dir * c.speed * dt;
       if (c.group.position.x > 420) c.group.position.x = -420;
       if (c.group.position.x < -420) c.group.position.x = 420;
-      for (const w of c.wheels) w.rotation.z -= (c.speed * dt) / 0.5;
+      for (const w of c.wheels) w.rotation.z -= (c.speed * dt) / 0.32;
     }
   }
   return { update };
